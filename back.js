@@ -172,10 +172,10 @@ function parseB095(B095) {
     var formData = B095.getSheetValues( 1, 1, B095.getLastRow() || 1, B095.getLastColumn() || 1 );
 
     // extract load number and unit number
-    // if unit number is '' or 'Average per Invoice:    '
+    // if unit number is '' or 'Average per Invoice:'
     // then return null
     var loadTruckArray = formData.map( function(record){
-      if ( record[13] !== '' && record[13] !== 'Average per Invoice:    ' && /\d{5}/.test( String(record[0]) ) ) {
+      if ( record[13] !== '' && String( record[13] ).trim() !== 'Average per Invoice:    ' && /\d{5}/.test( String(record[0]) ) ) {
         return [ String(record[0]).match(/\d{5}/)[0], record[13] ];
       } else {
         return null;
@@ -220,6 +220,7 @@ function handleDuplicatesAndDifferences(monthly, dest) {
                 monthlyData[monthlyIndex][2] !== destData[destIndex][2] ||
                 monthlyData[monthlyIndex][3] !== destData[destIndex][3] ||
                 monthlyData[monthlyIndex][4] !== destData[destIndex][4] ||
+                monthlyData[monthlyIndex][5] !== destData[destIndex][5] ||
                 monthlyData[monthlyIndex][7] !== destData[destIndex][7]  ) {
             occurrences[i].status = 'changed';
         } else {
