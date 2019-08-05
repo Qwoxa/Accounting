@@ -1,7 +1,12 @@
 // Current spreadsheet
 var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+function testing() {
+  getAllData( '085', '095', 'Sheet7' );
+  
 
+
+}
 /**
  * The function parses data from B085 and B095 form and inserts them into dest table.
  * @param {String} B085 Name of the sheet with dispatcher names.
@@ -17,7 +22,7 @@ function getAllData(B085, B095, dest) {
 
     // parse data from the B095 form
     var trucks = parseB095( B095 );
-    
+    Logger.log( trucks );
     // Array with loads, which have not been matched with unit number 
     var withoutUnitNumber = [];
     
@@ -45,6 +50,13 @@ function getAllData(B085, B095, dest) {
    
    // if output is not empty, and the first element either
    if ( B085Data.length && B085Data[0].length ) {
+   
+     // sort by load number
+     B085Data.sort( function (a, b) {
+       return a[0] - b[0];
+     } );
+     
+     // insert to the destination table
      destinarionTable.getRange( 1, 1, B085Data.length, B085Data[0].length ).setValues( B085Data );
    }
    
@@ -91,7 +103,7 @@ function parseB085(B085) {
 
     // aggregate records by dispatcher name
     formData.forEach( function processData(record) {
-        if ( record[1] == 'Invoices: ' && record[0] != 'Grand Totals' ) {
+        if ( String( record[1] ).trim() == 'Invoices:' && record[0] != 'Grand Totals' ) {
             // if a summary record, add the 'disp' property to the current object, 
             // and create a new one with records array inside
             dispatcherRecords[ dispatcherRecords.length-1 ].disp = record[0];
@@ -154,7 +166,8 @@ function parseB085(B085) {
  * @returns {Array} Array with load and unit numbers.
  */
 function parseB095(B095) {
-    var B095 = ss.getSheetByName(B095);
+    Logger.log( 'here ');
+    var B095 = ss.getSheetByName( B095 );
     // all data from B095 form
     var formData = B095.getSheetValues( 1, 1, B095.getLastRow() || 1, B095.getLastColumn() || 1 );
 
@@ -184,9 +197,6 @@ function parseB095(B095) {
 }
 
 
-function test() {
-  handleDuplicatesAndDifferences('August_2019', 'dest');
-}
 
 /**
  * The function searches for duplicates/changes between two tables, marks them and sorts
@@ -228,9 +238,6 @@ function handleDuplicatesAndDifferences(monthly, dest) {
             dest.getRange( (destIndex + 1), 1, 1, 8 ).setBackground( '#ffcc00' );
         }
     }
-    
-    
-    dest.sort( 1 );
 }
 
 
