@@ -216,27 +216,39 @@ function handleDuplicatesAndDifferences(monthly, dest) {
     for ( var i = 0; i < occurrences.length; i++ ) {
         var monthlyIndex = occurrences[i].monthly;
         var destIndex = occurrences[i].dest;
-        if ( monthlyData[monthlyIndex][1] !== destData[destIndex][1] ||
-                monthlyData[monthlyIndex][2] !== destData[destIndex][2] ||
-                monthlyData[monthlyIndex][3] !== destData[destIndex][3] ||
-                monthlyData[monthlyIndex][4] !== destData[destIndex][4] ||
-                monthlyData[monthlyIndex][5] !== destData[destIndex][5] ||
-                monthlyData[monthlyIndex][7] !== destData[destIndex][7]  ) {
-            occurrences[i].status = 'changed';
-        } else {
-            occurrences[i].status = 'exists';
+
+        // Indexes of [Broker, Truck, Load$, Driver$, Miles$ and Dispatcher]
+        var indexToCheck = [1, 2, 3, 4, 5, 7];
+
+        for ( var j = 0; j < indexToCheck.length; j++ ) {
+          var index = indexToCheck[j];
+          var monthlyCell = String( monthlyData[monthlyIndex][index] ).trim(); // trimmed cell in monthly report
+          var destCell = String( destData[destIndex][index] ).trim(); // trimmed cell in destination report
+
+          if ( monthlyCell !== destCell ) {
+            // if in the record the first field was changed - add indexes array (indexes of changes)
+            // and set the status prop of occurrences ot be 'changed'
+            if ( !occurrences[i].status ) {
+              occurrences[i].status = 'changed';
+              occurrences[i].indexes = [];
+            }
+            
+            // add the index of a changed cell
+            occurrences[i].indexes.push( index );
+          }
         }
     }
 
     // add the status to the dest sheet
     for ( var i = 0; i < occurrences.length; i++ ) {
         var destIndex = occurrences[i].dest;
-        dest.getRange( (destIndex + 1), 9, 1, 1 ).setValue( occurrences[i].status );
-        
         if ( occurrences[i].status === 'changed' ) {
-            dest.getRange( (destIndex + 1), 1, 1, 8 ).setBackground( '#cc3300' );
-        } else {
-            dest.getRange( (destIndex + 1), 1, 1, 8 ).setBackground( '#ffcc00' );
+
+            //iterate all changes
+            var indexes = occurrences[i].indexes;
+            for ( var j = 0; j < indexes.length; j++ ) {
+              dest.getRange( (destIndex + 1), (indexes[j] + 1), 1, 1 ).setBackground( 'yellow' );
+            }
         }
     }
 }
