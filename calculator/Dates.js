@@ -123,64 +123,7 @@ function CalculatorDate(date, exceptions) {
       
       return true;
     }
-    
   
-    /**
-     * Инициализировать week
-     */
-    (function setWeek() {
-      // Для конца nextWeek нужно создать отдельный объект
-      var nextWeek = new Date( date.valueOf() );
-      nextWeek.setDate( nextWeek.getDate() + 7 );
-      
-      
-      week.start = getWeek( date );
-      week.end = getWeek( nextWeek );
-    })();
-    
-    
-    /**
-     * Получает понедельник для заданной даты
-     * @param {Object} date День, для которого нужно найти предшествующий понедельник
-     * @return {Object} Дата понедельника.
-     */
-    function getWeek(date) {
-      // Сделаем копию date, чтобы не было сайд эффектов
-      var date = new Date(date.valueOf());
-      
-      // Получить день недели
-      var dayCount = date.getDay();
-      var thisWeek = date;
-      
-      // Модифицировать дату
-      if (dayCount == 0) {
-        thisWeek.setDate(date.getDate() - 6);
-      } else if (dayCount != 0) {
-        thisWeek.setDate(date.getDate() - dayCount + 1);
-      }
-      
-      return thisWeek;
-    }
-    
-    
-    /**
-     * Инициализировать day
-     */
-    (function setDay() {
-      // Для конца Pay Period как параметр функции нужно передать дату + 1 месяц
-      var tomorrow = new Date( date.valueOf() + 1000 * 3600 * 24 );
-      
-      day.start = date;
-      day.end = tomorrow;
-    })();
-    
-    
-     var Exports = {
-       payPeriod: payPeriod,
-       week: week,
-       day: day
-     };
      
-     
-     return Exports;
+     return payPeriod;
   }

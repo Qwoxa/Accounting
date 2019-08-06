@@ -1,10 +1,14 @@
+function testingCalc() {
+  main( '', 'August', 'out' );
+}
+
 function main(date, src, calc) {
     var ss = SpreadsheetApp.getActiveSpreadsheet(); // Текущая таблица
     var srcPage = ss.getSheetByName( src ); // Страница, из которой нужно вытянуть данные по грузам
     var calcPage = ss.getSheetByName( calc ); // Страница, куда нужно выводить данные
 
     // Список диспетчеров (те, которых нужно учитывать при рассчётах)
-    var dispatchersList = getDispatchersList( ss );
+    var dispatchers = getDispatchers( ss );
     
     // Дефолтная дата - сегодняшняя
     if ( typeof date !== 'object' ) {
@@ -12,105 +16,97 @@ function main(date, src, calc) {
         date.setHours( 0, 0, 0, 0 );
     }
     
-    // Извлечь данные из профит борда
-    var extractedData = extractData( profitBoardSS );
+
+    // Вытягивает данные из заданной таблицы
+    var extractedData = srcPage.getSheetValues( 2, 3, srcPage.getLastRow() || 1, 9 );
     
     
-    // Фильтрует полученные данные: проверяет не Cancel ли груз, указан ли диспетчер и указана ли дата, когда груз забукали
+    // Фильтрует полученные данные (указан ли диспетчер, корректна ли сумма, есть ли дата)
     // Если условия удовлетворены - данные о дате, сумме профита и имени диспетчера
-    // добавлятся в основной массив
     var data = extractedData.reduce(function(accum, record) {
       var dateBooked = record[0];
-      var profit = record[14];
-      var dispatcher = record[15];
-      
+      var profit = record[7];
+      var dispatcher = record[8];
       var dateBookedIsValid = typeof dateBooked === 'object';
-      var isMarkedCanceled = String( record[8] ).toLowerCase() === 'cancel'; // Если cancel написали в Notes
-      var isProfitCanceled = String( profit ).toLowerCase() === 'no'; // Если в профит написали No - это тоже cancel
       var isDispatcherDefined = dispatcher !== '';
-      
-      if ( dateBookedIsValid && !isMarkedCanceled && !isProfitCanceled && isDispatcherDefined ) {
+
+      if ( dateBookedIsValid && isDispatcherDefined && !isNaN(profit) ) {
         accum.push( [dateBooked, profit, dispatcher] );
       }
       
       return accum;
     }, []);
   
+  
     
     // Module Dates.gs
-    // Получаем даты начала и конца платёжного периода, недели и дня
-    var excetionsPayPeriod = payPeriodS.getRange( 1, 2, payPeriodS.getLastRow() || 1, 2 ).getValues();
-    var dates = CalculatorDate( chosenDate, excetionsPayPeriod );
-    
-    
+    // Получаем даты начала и конца платёжного периода
+    var exs = ss.getSheetByName('Pay Period');
+    var excetionsPayPeriod = exs.getRange( 1, 2, exs.getLastRow() || 1, 2 ).getValues();
+    var dates = CalculatorDate( date, excetionsPayPeriod );
     
     
     // Get statistics
     var statistics = {};
     
-    for (var key in dates) {
-      statistics[key] = getStatistics( data, dates[key], dispatchersList );
-    }
-  
-    // JUST FOR TESTING PURPOSES
-    
-    RenderCalculator({
-      page: calculatorSS.getSheetByName('test'),
-      changedDate: null,
-      data: statistics,
-      dispatchers: dispatchersList
-    });
-    
-  }
-  
-  
-  /**
-   * Вытягивает все данные из таблицы, формируя массив на выходе
-   * param {Object} sheet Страница, из которой нужно вытянуть данные.
-   * return {Object} Массив данных из таблицы.
-   */
-  function extractData(sheet) {
 
-    var lastRow = sheet.getLastRow() || 1;
-    var lastColumn = sheet.getLastColumn() || 1;
-    // Проходит по каждой странице таблицы, получая из неё данные в виде массивов, формируя один массив
-    var sheetsData = sheet.getSheetValues( 2, 4, lastRow, lastColumn );
-  
-    // Объединить все элементы массива в массив data
-    var data = sheetsData.reduce( function(accum, sheetData) {
-      return accum.concat( sheetData );
-    }, [] );
+    var next = dates.start;
+    while ( next.valueOf() !== dates.end.valueOf() ) {
+      // next iteration = + one day
+      nextIt = new Date( next.valueOf() );
+      nextIt.setDate( nextIt.getDate() + 1 );
+
+        statistics[next] = getStatistics( data, {
+          start: next,
+          end: nextIt
+        }, dispatchers );
+      
+
+      next = nextIt;
+    }
     
+    Logger.log( statistics );
+//    // JUST FOR TESTING PURPOSES
+//    
+//    RenderCalculator({
+//      page: calcPage,
+//      data: statistics,
+//      dispatchers: dispatchers
+//    });
     
-    return data;
   }
   
   
-  /**
-   * Возвращает список диспетчеров 360.
-   * @param {Object} ss Таблица со списком диспетчеров
-   * @return {Object} Список диспетчеров.
-   */ 
-  function getDispatchersList(ss) {
-    // получаем таблицу со списком
-    var dispatchersTable = ss.getSheetByName('Dispatchers');
   
-    // вытягиваем цвета ячеек и имена
-    var dispatchers = dispatchersTable.getRange( 1, 1, dispatchersTable.getLastRow(), 1 ).getValues();
-    var styles = dispatchersTable.getRange( 1, 2, dispatchersTable.getLastRow(), 1 ).getBackgrounds();
-   
-    // фильтруем имена
-    var validNames = dispatchers.filter(function(dispatcher, index) {
-      return dispatcher[0] != '' && dispatcher[0] != 'Name' && styles[index][0] != '#ffffff';
-    });
+ /**
+ * Возвращает объекты диспетчеров с их тимами.
+ * @param {Object} ss Таблица со списком диспетчеров
+ * @return {Array} Список диспетчеров (объект - имя, тим)
+ */ 
+function getDispatchers(ss) {
+  // получаем таблицу со списком
+  var dispatchersTable = ss.getSheetByName('Dispatchers');
+
+  // вытягиваем цвета ячеек и имена
+  var dispatchers = dispatchersTable.getRange( 1, 1, dispatchersTable.getLastRow() || 1, 2 ).getValues();
+ 
+  // фильтруем имена
+  var validNames = dispatchers.filter(function(dispatcher, index) {
+    return dispatcher[0] != '' && dispatcher[0] != 'Name';
+  });
+  
+  var out = [];
+  // вытянуть данные в объекты
+  validNames.map(function(disp){
+    var obj = {};
+    obj.name = disp[0];
+    obj.team = disp[1];
     
-    // двухмерный массив -> одномерный
-    validNames.map(function(name){
-      return name[0];
-    });
-    
-    return validNames;
-  }
+    out.push( obj );
+  });
+  
+  return out;
+}
   
   
   /**
@@ -134,6 +130,9 @@ function main(date, src, calc) {
        output[dispatcher] = {};
        output[dispatcher].amount = 0;
        output[dispatcher].profit = 0;
+       output[dispatcher.team] = {};
+       output[dispatcher.team].amount = 0;
+       output[dispatcher.team].profit = 0;
     });
     
     
@@ -149,6 +148,8 @@ function main(date, src, calc) {
         output[dispatcher].amount++;
         output.total.profit += Number( profit );
         output.total.amount++;
+        output[dispatcher.team].profit += Number( profit );
+        output[dispatcher.team].amount++;
       }
     });
     
