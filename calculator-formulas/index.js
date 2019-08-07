@@ -1,5 +1,7 @@
 var headingColor = '#e69138';
 var headingColorLighter = '#f9cb9c';
+var grey = '#d9d9d9';
+var darkGrey = '#666666';
 var dates,
     disps,
     dest,
@@ -9,7 +11,10 @@ var dates,
 
 function testGeneration() {
   // list of dispatchers
-  var disps = [['Max', 'Mike', 'Daniel', 'Jake', 'Matt', 'James', 'Ryan', 'Dominic', 'David', 'Pete'], ['Ross', 'Ray', 'Todd', 'Oscar', 'Stan'], ['Mark'], ['Tony', 'Howard', 'Jack', 'Tom', 'Travis', 'Nate', 'George', 'Dave', 'Sean']];
+  var disps = [['Max', 'Mike', 'Daniel', 'Jake', 'Matt', 'James', 'Ryan', 'Dominic', 'David', 'Pete'], 
+                ['Ross', 'Ray', 'Todd', 'Oscar', 'Stan'], 
+                ['Mark'],
+                ['Tony', 'Howard', 'Jack', 'Tom', 'Travis', 'Nate', 'George', 'Dave', 'Sean']];
   
   // duration of pay period
   var start = new Date( 2019, 05, 24 );
@@ -80,7 +85,7 @@ function createTable(startDay, row) {
   
   var body = createBody( row );
   
-  Logger.log( JSON.stringify(body) );
+
   return head.concat( body );
 }
 
@@ -89,23 +94,99 @@ function createTable(startDay, row) {
 function createBody(startRow) {
   // get the top of the table
   var row = startRow + 2;
-  
+  var totals = [];
   
   var body = [];
   //each team
   for ( var i = 0; i < disps.length; i++ ) {
       var team = disps[i];
       
-      body = body.concat( generateTeam( startRow, row, team ) );
+      var generatedTeam = generateTeam( startRow, row, team );
+      body = body.concat( generatedTeam );
       
-      row += team.length;
+
+      styleTeam( row, team.length );
+
+      row += generatedTeam.length;
+      totals.push( row - 1 );
+      
   }
   
   
+  var tableTotal = createTableTotal( totals );
+  body = body.concat( tableTotal );
+  dest.getRange( row, 1, 1, 17 ).setBackground( darkGrey );
+  dest.getRange( row, 1, 1, 17 ).setFontColor( '#fff' );
   
   return body;
 }
 
+
+function createTableTotal(indexes) {
+    var A = [], B = [], C = [], D = [], E = [], F = [], G = [],
+      H = [], I = [], J = [], K = [], L = [], M = [], N = [], O = [],
+      P = [], Q = [];
+      
+    for ( var i = 0; i < indexes.length; i++ ) {
+      A.push( 'A' + indexes[i] );
+      B.push( 'B' + indexes[i] );
+      C.push( 'C' + indexes[i] );
+      D.push( 'D' + indexes[i] );
+      E.push( 'E' + indexes[i] );
+      F.push( 'F' + indexes[i] );
+      G.push( 'G' + indexes[i] );
+      H.push( 'H' + indexes[i] );
+      I.push( 'I' + indexes[i] );
+      J.push( 'J' + indexes[i] );
+      K.push( 'K' + indexes[i] );
+      L.push( 'L' + indexes[i] );
+      M.push( 'M' + indexes[i] );
+      N.push( 'N' + indexes[i] );
+      O.push( 'O' + indexes[i] );
+      P.push( 'P' + indexes[i] );
+      Q.push( 'Q' + indexes[i] );
+    }
+  
+    return [[
+      'TOTAL',
+      '=' + B.join('+'),
+      '=' + C.join('+'),
+      '=' + D.join('+'),
+      '=' + E.join('+'),
+      '=' + F.join('+'),
+      '=' + G.join('+'),
+      '=' + H.join('+'),
+      '=' + I.join('+'),
+      '=' + J.join('+'),
+      '=' + K.join('+'),
+      '=' + L.join('+'),
+      '=' + M.join('+'),
+      '=' + N.join('+'),
+      '=' + O.join('+'),
+      '=' + P.join('+'),
+      '=' + Q.join('+'),
+    ]];
+}
+
+
+
+function styleTeam( currentRow, teamLen) {
+
+  var col = 2;
+  for ( var i = 0; i < 7; i++ ) {
+    dest.getRange( currentRow, col, teamLen, 1 ).setBackground( grey );
+    col += 2;
+  }
+  
+  
+  // vertical total
+  dest.getRange( currentRow + teamLen, 1, 1, 17 ).setBackground( headingColor );
+  dest.getRange( currentRow + teamLen, 1, 1, 17 ).setFontColor( '#fff' );
+  
+  // summary qty
+  dest.getRange( currentRow, col, teamLen, 1 ).setBackground( darkGrey );
+  dest.getRange( currentRow, col, teamLen, 1 ).setFontColor( '#fff' );
+}
 
 /**
  * Generates data (formulas) on team.
@@ -115,8 +196,11 @@ function createBody(startRow) {
  */
 function generateTeam(startRow, currentRow, names) {
   var currentRow = currentRow;
+
+  var totalSum = totalTeamSumFormula.bind( this, currentRow, currentRow + names.length -1 );
   var team = [];
   
+
   for ( var i = 0; i < names.length; i++) {
     team.push( [ 
       names[i], 
@@ -134,16 +218,39 @@ function generateTeam(startRow, currentRow, names) {
       sumFormula( 'L', startRow, currentRow ),
       qtyFormula( 'N', startRow, currentRow ),
       sumFormula( 'N', startRow, currentRow ),
-      null,
-      null
+      qtySummary( currentRow ),
+      sumSummary( currentRow )
     ] );
     
     ++currentRow;
   }
   
+  var summaryCount = "=B".concat(currentRow, "+D").concat(currentRow, "+F").concat(currentRow, "+H").concat(currentRow, "+J").concat(currentRow, "+L").concat(currentRow, "+N").concat(currentRow);
+  var summarySum = "=C".concat(currentRow, "+E").concat(currentRow, "+G").concat(currentRow, "+I").concat(currentRow, "+K").concat(currentRow, "+M").concat(currentRow, "+O").concat(currentRow);
+  
+  
+  team.push( ['Total', totalSum( 'B' ), totalSum( 'C' ), totalSum( 'D' ), totalSum( 'E' ), totalSum( 'F' ),
+  totalSum( 'G' ), totalSum( 'H' ), totalSum( 'I' ), totalSum( 'J' ), totalSum( 'K' ), totalSum( 'L' ),
+  totalSum( 'M' ), totalSum( 'N' ), totalSum( 'O' ), summaryCount, summarySum] );
+  
+  
   return team;
 }
 
+
+function qtySummary(row) {
+  return "=B".concat(row, "+D").concat(row, "+F").concat(row, "+H").concat(row, "+J").concat(row, "+L").concat(row, "+N").concat(row);
+}
+
+
+function sumSummary(row) {
+  return "=C".concat(row, "+E").concat(row, "+G").concat(row, "+I").concat(row, "+K").concat(row, "+M").concat(row, "+O").concat(row);
+}
+
+
+function totalTeamSumFormula(startRow, endRow, letter) {
+  return '=sum(' + letter + startRow + ':' + letter + endRow + ')';
+}
 
 /**
  * The function generates the formula for quantity.
