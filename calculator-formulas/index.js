@@ -39,7 +39,7 @@ function testGeneration() {
  * @param {Object} dst Destination Sheet.
  * @param {String} sn The name of the sheet to link formulas to.
  */
-function initializeVariables( dt, dp, dst, sn ) {
+function initializeVariables(dt, dp, dst, sn) {
     dates = dt;
     disps = dp;
     dest = dst;
@@ -69,49 +69,192 @@ function generation() {
 }
 
 
-/**
- * Generates a table for the chosen week
- * @param {Object} startDay The Monday of the week.
- * @param {Number} row The row to insert the next table to.
- * @returns {Array} Two dimentional array with data.
- */
-function createTable(startDay, row) {
-  // create array with days of the week
-  var days = createDaysArray( startDay );
-  
-  // create header for the table and style it
-  var head = createHead( days );
-  styleHead( row );
-  
-  var body = createBody( row );
-  
+function Table(startDay, row) {
+  this._startDay = startDay;
+  this._row = row;
+  this._data = [];
 
-  return head.concat( body );
+  /**
+   * Initializes the table.
+   * @param {Object} startDay The Monday of the week.
+   * @param {Number} row The row to insert the table to.
+   * @returns {Array} Two dimentional array with data.
+   */
+  this.init = function() {
+    // create array with days of the week
+    this._createDaysArray();
+    
+    // create header and body
+    this._data = new Head( this._weekdays, this._row );
+    this._data = this._data.concat( new Body(row) );
+
+    return this._data;
+  };
+
+  /**
+   * Creates an arrays with dates for the headings
+   */
+  this._createDaysArray = function() {
+    this._weekdays = [];
+    
+    // no side-effects
+    var currentDay = new Date( this._startDay.valueOf() );
+    this._weekdays.push( new Date( this._startDay.valueOf() ) );
+    
+    // add to the this._weekdays the whole week
+    while ( this._weekdays.length != 7 ) {
+      var nextDay = currentDay.setDate( currentDay.getDate() + 1 );
+      this._weekdays.push( new Date( nextDay.valueOf() ) );
+    }
+  };
+}
+
+/**
+ * Creates the head of the week report.
+ * @param {Array} weekdays Array with the days.
+ * @returns {Array} Array with head.
+ */
+function Head(titles, row) {
+  this._titles = titles;
+  this._row = row;
+  this._lastCol = 16;
+  this._data = [['Dispatcher'], [null]];
+
+  /**
+   * Initialized the header.
+   * @returns {Array} The array with header.
+   */
+  this.init = function() {
+    var datesRow = this._data[0];
+    var marksRow = this._data[1];
+
+    this._titles.forEach( function(title) {
+      datesRow.push( title.toDateString(), null );
+      marksRow.push( 'Q-ty', '$' );
+    } );
+
+    datesRow.push( 'Summary', null );
+    marksRow.push( 'Q-ty', '$' );
+
+    this._setHeadStyles();
+    return this._data;
+  };
+
+
+  /**
+   * Sets styles for the header: merging, backgrounds, colors.
+   */
+  this._setHeadStyles = function() {
+    // MERGING
+    dest.getRange( this._row, 1, 2, 1 ).mergeVertically(); 
+  
+    for ( var col = 2, i = 0; i < 8; i++ ) {
+      dest.getRange( this._row, col, 1, 2 ).mergeAcross();
+      col += 2;
+    }
+
+    // BACKGROUNDS AND COLORS
+    dest.getRange( row, 2, 2, this._lastCol ).setBackground( headingColor );
+    dest.getRange( row, 1, 2, 1 ).setBackground( headingColor );
+    dest.getRange( row, 2, 1, this._lastCol - 2 ).setBackground( headingColorLighter );
+    dest.getRange( row, 1, 1, 1 ).setFontColor( '#fff' );
+    dest.getRange( row, this._lastCol, 1, 1 ).setFontColor( '#fff' );
+  };
 }
 
 
 
-function createBody(startRow) {
-  // get the top of the table
-  var row = startRow + 2;
-  var totals = [];
-  
-  var body = [];
-  //each team
-  for ( var i = 0; i < disps.length; i++ ) {
+function Body(row) {
+  this._tableStartRow = row;
+  this._bodyStartRow = row + 2;
+  this._totalTeamResults = [];
+  this._data = [];
+
+  this.init = function() {
+    for ( var i = 0; i < disps.length; i++ ) {
       var team = disps[i];
       
-      var generatedTeam = generateTeam( startRow, row, team );
-      body = body.concat( generatedTeam );
+      var teamRecords = this._generateTeamRecords( team );
+      var teamRecordsAmount = teamRecords.length;
+      this._data = this._data.concat( teamRecords );
       
 
-      styleTeam( row, team.length );
+      styleTeam( this._bodyStartRow, teamRecordsAmount );
 
-      row += generatedTeam.length;
-      totals.push( row - 1 );
-      
+      this._bodyStartRow += generatedTeam.length;
+      this._totalTeamResults.push( this._bodyStartRow - 1 );
+    }
+  };
+
+  this._generateTeamRecords = function(team) {
+
+    function qtyFormula(startRow, currentRow, letter) {
+      return '=COUNTIFS( ' + sourceName + '!$K:$K, $A' + currentRow + ', \
+              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
+            )';
+    }
+
+
+    function sumFormula(startRow, currentRow, letter) {
+      return '=SUMIFS(' + sourceName + '!$J:$J, \
+              ' + sourceName + '!$K:$K, $A' + currentRow + ', \
+              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
+            )';
+    }
+
+    function qtySummary(row) {
+      return "=B".concat(row, "+D").concat(row, "+F").concat(row, "+H").concat(row, "+J").concat(row, "+L").concat(row, "+N").concat(row);
+    }
+    
+    
+    function sumSummary(row) {
+      return "=C".concat(row, "+E").concat(row, "+G").concat(row, "+I").concat(row, "+K").concat(row, "+M").concat(row, "+O").concat(row);
+    }
+
+
+    var totalSumFormula = function(firstRow, lastRow, letter) {
+      return '=sum(' + letter + startRow + ':' + letter + endRow + ')';
+    }.bind( null, this._bodyStartRow, this._bodyStartRow + team.length - 1 );
+
+    var teamRecords = [];
+
+
+    
+  for ( var i = 0; i < names.length; i++) {
+    var qty = qtyFormula.bind( null, this._tableStartRow, this._bodyStartRow );
+    var sum = sumFormula.bind( null, this._tableStartRow, this._bodyStartRow );
+    var letters = ['B', 'D', 'F', 'H', 'J', 'L', 'N'];
+
+    letters.forEach( function(letter) {
+      teamRecords.push( qty(letter), sum(letter) );
+    } );
+
+    teamRecords.push (
+      qtySummary( this._bodyStartRow ),
+      sumSummary( this._bodyStartRow )
+    );
+
+    
+    ++this._bodyStartRow;
   }
   
+  var summaryCount = "=B".concat(currentRow, "+D").concat(currentRow, "+F").concat(currentRow, "+H").concat(currentRow, "+J").concat(currentRow, "+L").concat(currentRow, "+N").concat(currentRow);
+  var summarySum = "=C".concat(currentRow, "+E").concat(currentRow, "+G").concat(currentRow, "+I").concat(currentRow, "+K").concat(currentRow, "+M").concat(currentRow, "+O").concat(currentRow);
+  
+  
+  team.push( ['Total', totalSum( 'B' ), totalSum( 'C' ), totalSum( 'D' ), totalSum( 'E' ), totalSum( 'F' ),
+  totalSum( 'G' ), totalSum( 'H' ), totalSum( 'I' ), totalSum( 'J' ), totalSum( 'K' ), totalSum( 'L' ),
+  totalSum( 'M' ), totalSum( 'N' ), totalSum( 'O' ), summaryCount, summarySum] );
+  
+  
+  return team;
+  };
+}
+
+
+
+function createBodyff(startRow) {
+ 
   
   var tableTotal = createTableTotal( totals );
   body = body.concat( tableTotal );
@@ -188,174 +331,19 @@ function styleTeam( currentRow, teamLen) {
   dest.getRange( currentRow, col, teamLen, 1 ).setFontColor( '#fff' );
 }
 
-/**
- * Generates data (formulas) on team.
- * @param {Number} startRow The row where the table starts.
- * @param {Number} currentRow The row where the team starts.
- * @returns {Array} Formulas for profit and count accounting.
- */
-function generateTeam(startRow, currentRow, names) {
-  var currentRow = currentRow;
-
-  var totalSum = totalTeamSumFormula.bind( this, currentRow, currentRow + names.length -1 );
-  var team = [];
-  
-
-  for ( var i = 0; i < names.length; i++) {
-    team.push( [ 
-      names[i], 
-      qtyFormula( 'B', startRow, currentRow ),
-      sumFormula( 'B', startRow, currentRow ),
-      qtyFormula( 'D', startRow, currentRow ),
-      sumFormula( 'D', startRow, currentRow ),
-      qtyFormula( 'F', startRow, currentRow ),
-      sumFormula( 'F', startRow, currentRow ),
-      qtyFormula( 'H', startRow, currentRow ),
-      sumFormula( 'H', startRow, currentRow ),
-      qtyFormula( 'J', startRow, currentRow ),
-      sumFormula( 'J', startRow, currentRow ),
-      qtyFormula( 'L', startRow, currentRow ),
-      sumFormula( 'L', startRow, currentRow ),
-      qtyFormula( 'N', startRow, currentRow ),
-      sumFormula( 'N', startRow, currentRow ),
-      qtySummary( currentRow ),
-      sumSummary( currentRow )
-    ] );
-    
-    ++currentRow;
-  }
-  
-  var summaryCount = "=B".concat(currentRow, "+D").concat(currentRow, "+F").concat(currentRow, "+H").concat(currentRow, "+J").concat(currentRow, "+L").concat(currentRow, "+N").concat(currentRow);
-  var summarySum = "=C".concat(currentRow, "+E").concat(currentRow, "+G").concat(currentRow, "+I").concat(currentRow, "+K").concat(currentRow, "+M").concat(currentRow, "+O").concat(currentRow);
-  
-  
-  team.push( ['Total', totalSum( 'B' ), totalSum( 'C' ), totalSum( 'D' ), totalSum( 'E' ), totalSum( 'F' ),
-  totalSum( 'G' ), totalSum( 'H' ), totalSum( 'I' ), totalSum( 'J' ), totalSum( 'K' ), totalSum( 'L' ),
-  totalSum( 'M' ), totalSum( 'N' ), totalSum( 'O' ), summaryCount, summarySum] );
-  
-  
-  return team;
-}
 
 
-function qtySummary(row) {
-  return "=B".concat(row, "+D").concat(row, "+F").concat(row, "+H").concat(row, "+J").concat(row, "+L").concat(row, "+N").concat(row);
-}
 
 
-function sumSummary(row) {
-  return "=C".concat(row, "+E").concat(row, "+G").concat(row, "+I").concat(row, "+K").concat(row, "+M").concat(row, "+O").concat(row);
-}
 
 
-function totalTeamSumFormula(startRow, endRow, letter) {
-  return '=sum(' + letter + startRow + ':' + letter + endRow + ')';
-}
-
-/**
- * The function generates the formula for quantity.
- * @param {String} letter Column.
- * @param {Number} startRow Row.
- * @param {Number} currentRow Current Row.
- */
-function qtyFormula(letter, startRow, currentRow) {
-  return '=COUNTIFS( ' + sourceName + '!$K:$K, $A' + currentRow + ', \
-           ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
-         )';
-}
 
 
-/**
- * The function generates the formula for sum.
- * @param {String} letter Column.
- * @param {Number} startRow Row.
- * @param {Number} currentRow Current Row.
- */
-function sumFormula(letter, startRow, currentRow) {
-  return '=SUMIFS(' + sourceName + '!$J:$J, \
-          ' + sourceName + '!$K:$K, $A' + currentRow + ', \
-          ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
-         )';
-}
 
 
-/**
- * Gives some styling to the head (font weight, merging, font color and bg color)
- * @param {Object} dest The table to which to apply styles.
- * @param {Number} row The row of table start.
- */
-function styleHead(row) { 
-
-  // Dispatcher in first col
-  dest.getRange( row, 1, 2, 1 ).mergeVertically(); 
-  
-  // Merge dates two cells into one
-  var col = 2;
-  for ( var i = 0; i < 8; i++) {
-    dest.getRange( row, col, 1, 2 ).mergeAcross();
-    col += 2;
-  }
-  
-  // Date format
-  dest.getRange( row, 2, 1, 14 )
-  
-  // Add colors
-  dest.getRange( row, 2, 2, 16 ).setBackground( headingColor );
-  dest.getRange( row, 1, 2, 1 ).setBackground( headingColor );
-  dest.getRange( row, 2, 1, 14 ).setBackground( headingColorLighter );
-  
-  
-  // Bold
-  dest.getRange( row, 2, 2, 16 ).setFontWeight( 'bold' );
-  dest.getRange( row, 1, 2, 1 ).setFontWeight( 'bold' );
-  
-  
-  // White font colot
-  dest.getRange( row, 1, 1, 1 ).setFontColor( '#fff' );
-  dest.getRange( row, 16, 1, 1 ).setFontColor( '#fff' );
-  
-}
-
-/**
- * Creates the head of the week report.
- * @param {Array} weekdays Array with the days.
- * @returns {Array} Array with head.
- */
-function createHead(weekdays) {
-  var head = [['Dispatcher'],[null]]; // first cell
-  
-  weekdays.forEach( function(day) {
-    head[0].push( day.toDateString(), null );
-    head[1].push( 'Q-ty', '$' );
-  } );
-  
-  head[0].push( 'Summary', null );
-  head[1].push( 'Q-ty', '$' );
-  
-  return head;
-}
 
 
-/**
- * Creates an arrays with dates (from startDay to one week ahead)
- * @param {Object} startDay Date to start from.
- * @returns {Array} Array with dates of the week.
- */
-function createDaysArray(startDay) {
-   var days = [];
-    
-  // no side-effects
-  var currentDay = new Date( startDay.valueOf() );
-  days.push( new Date( startDay.valueOf() ) );
-  
-  
-  while ( days.length != 7 ) {
-    var nextDay = currentDay.setDate( currentDay.getDate() + 1 );
-    days.push( new Date( currentDay.valueOf() ) );
-  }
-  
-  return days;
-}
+
 
 
 /**
