@@ -169,6 +169,26 @@ function Body(row) {
   this._bodyStartRow = row + 2;
   this._totalTeamResults = [];
   this._data = [];
+  this._funcs = {
+    qtyFormula: function qtyFormula(startRow, currentRow, letter) {
+      return '=COUNTIFS( ' + sourceName + '!$K:$K, $A' + currentRow + ', \
+              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
+            )';
+    },
+    sumFormula: function sumFormula(startRow, currentRow, letter) {
+      return '=SUMIFS(' + sourceName + '!$J:$J, \
+              ' + sourceName + '!$K:$K, $A' + currentRow + ', \
+              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
+            )';
+    },
+    qtySUmmary: function qtySummary(row) {
+      return "=B".concat(row, "+D").concat(row, "+F").concat(row, "+H").concat(row, "+J").concat(row, "+L").concat(row, "+N").concat(row);
+    },
+    
+    sumSummary: function sumSummary(row) {
+      return "=C".concat(row, "+E").concat(row, "+G").concat(row, "+I").concat(row, "+K").concat(row, "+M").concat(row, "+O").concat(row);
+    }
+  };
 
   this.init = function() {
     for ( var i = 0; i < disps.length; i++ ) {
@@ -188,38 +208,12 @@ function Body(row) {
 
   this._generateTeamRecords = function(team) {
 
-    function qtyFormula(startRow, currentRow, letter) {
-      return '=COUNTIFS( ' + sourceName + '!$K:$K, $A' + currentRow + ', \
-              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
-            )';
-    }
+  var totalSumFormula = function(startRow, endRow, letter) {
+    return '=sum(' + letter + startRow + ':' + letter + endRow + ')';
+  }.bind( null, this._bodyStartRow, this._bodyStartRow + team.length - 1 );
 
+  var teamRecords = [];
 
-    function sumFormula(startRow, currentRow, letter) {
-      return '=SUMIFS(' + sourceName + '!$J:$J, \
-              ' + sourceName + '!$K:$K, $A' + currentRow + ', \
-              ' + sourceName + '!$C:$C, ' + letter + '$' + startRow + ' \
-            )';
-    }
-
-    function qtySummary(row) {
-      return "=B".concat(row, "+D").concat(row, "+F").concat(row, "+H").concat(row, "+J").concat(row, "+L").concat(row, "+N").concat(row);
-    }
-    
-    
-    function sumSummary(row) {
-      return "=C".concat(row, "+E").concat(row, "+G").concat(row, "+I").concat(row, "+K").concat(row, "+M").concat(row, "+O").concat(row);
-    }
-
-
-    var totalSumFormula = function(firstRow, lastRow, letter) {
-      return '=sum(' + letter + startRow + ':' + letter + endRow + ')';
-    }.bind( null, this._bodyStartRow, this._bodyStartRow + team.length - 1 );
-
-    var teamRecords = [];
-
-
-    
   for ( var i = 0; i < names.length; i++) {
     var qty = qtyFormula.bind( null, this._tableStartRow, this._bodyStartRow );
     var sum = sumFormula.bind( null, this._tableStartRow, this._bodyStartRow );
@@ -237,9 +231,14 @@ function Body(row) {
     
     ++this._bodyStartRow;
   }
-  
-  var summaryCount = "=B".concat(currentRow, "+D").concat(currentRow, "+F").concat(currentRow, "+H").concat(currentRow, "+J").concat(currentRow, "+L").concat(currentRow, "+N").concat(currentRow);
-  var summarySum = "=C".concat(currentRow, "+E").concat(currentRow, "+G").concat(currentRow, "+I").concat(currentRow, "+K").concat(currentRow, "+M").concat(currentRow, "+O").concat(currentRow);
+
+  var lettersFull = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
+
+  var summaryCount = '=B', summarySum = '=C';
+  for ( var j = 2; j < lettersFull.length / 2; j += 2 ) {
+    summaryCount = summaryCount.concat( this._bodyStartRow, lettersFull[j] );
+    summarySum = summarySum.concat( this._bodyStartRow, lettersFull[j + 1] );
+  }
   
   
   team.push( ['Total', totalSum( 'B' ), totalSum( 'C' ), totalSum( 'D' ), totalSum( 'E' ), totalSum( 'F' ),
